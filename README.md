@@ -1,7 +1,9 @@
 # dubbo
 用python调用dubbo可以用于测试等
+依赖pyhessian，bitstring
 
-1.java的服务端代码
+1. java的服务端代码
+
 1.1 pojo对象
 
 ```java
