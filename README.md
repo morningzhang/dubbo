@@ -3,7 +3,6 @@
 依赖pyhessian，bitstring
 
 1. java的服务端代码
-
 1.1 pojo对象
 
 ```java
@@ -41,8 +40,9 @@ public class Person implements Serializable {
         this.age = age;
     }
 }
+```
 
-1.2接口
+1.2 接口
 ```java
 package org.apache.dubbo.demo;
 
@@ -59,8 +59,9 @@ public interface DemoService {
 
 }
 
+```
 
-2.python端调用
+2. python端调用
 ```python
 client = socket(AF_INET, SOCK_STREAM)
 client.connect(("127.0.0.1", 20880))
@@ -72,3 +73,4 @@ try:
 finally:
     client.close()
 
+```
