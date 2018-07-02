@@ -9,7 +9,7 @@ if __name__ == '__main__':
     try:
         interface = "org.apache.dubbo.demo.DemoService"
         d = Dubbo(interface, "0.0.0", "echo", (("Ljava/util/List;", [100, 200]), ("Ljava/lang/String;", u"某某")))
-        res = d.invoke(client)
+        res = d._invoke(client)
         print(res)
     finally:
         client.close()

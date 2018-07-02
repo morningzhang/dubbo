@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-import six
+import six, urllib, urlparse
+
+from socket import socket, AF_INET, SOCK_STREAM
+from kazoo.client import KazooClient
+
 from utils import encoder, parser
 from bitstring import ConstBitStream
 
@@ -28,7 +32,7 @@ class Dubbo(object):
 
         return "".join(elements)
 
-    def invoke(self, client):
+    def _invoke(self, client):
         data = self._encode(encoder.Encoder())
         reg_header = ConstBitStream('intbe:16=-9541,intbe:8=-62,intbe:8=0,uintbe:64=0,uintbe:32=%d' % len(data))
         client.send(reg_header.bytes)
@@ -39,7 +43,49 @@ class Dubbo(object):
         with_attachments = body.read('uintbe:8')
         if with_attachments == 149:
             return None
-        elif with_attachments == 148:
+        elif with_attachments == 148 or with_attachments == 145:
             p = parser.ParserV2(body)
-            res, _version = p.read_object(), p.read_object()
+            res = p.read_object()
+            return res
+
+
+class DubboZK(Dubbo):
+    def __init__(self, interface, version, hosts, dubbo_v="2.0.2"):
+        self.dubbo_v = dubbo_v
+        self.interface = interface
+        self.version = version
+        self.attachments = {"path": interface, "interface": interface, "version": version}
+        # zk
+        zk = KazooClient(hosts=hosts)
+        zk.start()
+        self.zk = zk
+        # providers
+        providers = zk.get_children("/dubbo/%s/providers" % interface)
+        uri = urlparse.urlparse(urllib.unquote(providers[0]))
+        # client
+        client = socket(AF_INET, SOCK_STREAM)
+        client.connect((uri.hostname, uri.port))
+        self.client = client
+        # add method
+        params = urlparse.parse_qs(uri.query)
+        for method in params["methods"][0].split(","):
+            setattr(self, method, self._invoke)
+
+    def _invoke(self, method, args):
+        self.args = args
+        self.method = method
+
+        data = self._encode(encoder.Encoder())
+        reg_header = ConstBitStream('intbe:16=-9541,intbe:8=-62,intbe:8=0,uintbe:64=0,uintbe:32=%d' % len(data))
+        self.client.send(reg_header.bytes)
+        self.client.send(data)
+
+        res_header = ConstBitStream(bytes=self.client.recv(16)).readlist('intbe:16,intbe:8,intbe:8,uintbe:64,uintbe:32')
+        body = ConstBitStream(bytes=self.client.recv(res_header[-1]))
+        with_attachments = body.read('uintbe:8')
+        if with_attachments == 149:
+            return None
+        elif with_attachments == 148 or with_attachments == 145:
+            p = parser.ParserV2(body)
+            res = p.read_object()
             return res

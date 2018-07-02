@@ -9,7 +9,7 @@ if __name__ == '__main__':
     try:
         d = Dubbo("org.apache.dubbo.demo.DemoService", "0.0.0", "swich",
                   (("Lorg/apache/dubbo/demo/Person;", {"name": u"某某", "address": [u"余杭"], "age": 15}),))
-        res = d.invoke(client)
+        res = d._invoke(client)
         print(res)
     finally:
         client.close()
