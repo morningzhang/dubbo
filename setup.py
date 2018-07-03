@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='pydubbo',
-    version=1,
+    version='0.0.1',
     description=(
         '用python调用dubbo可以用于测试等'
     ),
@@ -13,7 +13,7 @@ setup(
     author='zhangliming',
     author_email='149151874@qq.com',
     maintainer='zhangliming',
-    maintainer_email='zhangliming',
+    maintainer_email='149151874@qq.com',
     license='BSD License',
     packages=find_packages(),
     platforms=["all"],
