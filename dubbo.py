@@ -50,7 +50,7 @@ class Dubbo(object):
 
 
 class DubboZK(Dubbo):
-    def __init__(self, interface, version, hosts, dubbo_v="2.0.2"):
+    def __init__(self, interface, hosts, version="0.0.0", dubbo_v="2.0.2"):
         self.dubbo_v = dubbo_v
         self.interface = interface
         self.version = version
@@ -69,23 +69,10 @@ class DubboZK(Dubbo):
         # add method
         params = urlparse.parse_qs(uri.query)
         for method in params["methods"][0].split(","):
-            setattr(self, method, self._invoke)
+            setattr(self, method, self.invoke)
 
-    def _invoke(self, method, args):
+    def invoke(self, method, args):
         self.args = args
         self.method = method
 
-        data = self._encode(encoder.Encoder())
-        reg_header = ConstBitStream('intbe:16=-9541,intbe:8=-62,intbe:8=0,uintbe:64=0,uintbe:32=%d' % len(data))
-        self.client.send(reg_header.bytes)
-        self.client.send(data)
-
-        res_header = ConstBitStream(bytes=self.client.recv(16)).readlist('intbe:16,intbe:8,intbe:8,uintbe:64,uintbe:32')
-        body = ConstBitStream(bytes=self.client.recv(res_header[-1]))
-        with_attachments = body.read('uintbe:8')
-        if with_attachments == 149:
-            return None
-        elif with_attachments == 148 or with_attachments == 145:
-            p = parser.ParserV2(body)
-            res = p.read_object()
-            return res
+        return self._invoke(self.client)
