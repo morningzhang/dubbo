@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import functools
 import six, urllib, urlparse
 
 from socket import socket, AF_INET, SOCK_STREAM
@@ -43,6 +44,10 @@ class Dubbo(object):
         with_attachments = body.read('uintbe:8')
         if with_attachments == 149:
             return None
+        elif with_attachments == 83:  # 报错了
+            p = parser.ParserV2(body)
+            res = p.read_string()
+            raise Exception(res)
         else:
             p = parser.ParserV2(body)
             res = p.read_object()
