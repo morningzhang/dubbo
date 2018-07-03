@@ -6,4 +6,4 @@ if __name__ == '__main__':
     res = d.findByCode("findByCode", [("Ljava/lang/String;", u"00064")])
     print(res)
     res = d.findByCode("findByCode", [("Ljava/lang/String;", u"00064")])
-    print(res)
+    print(res.data.name)
