@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from dubbo import DubboZK
+from pydubbo.pydubbo import DubboZK
 
 if __name__ == '__main__':
     d = DubboZK(interface="com.dianwoba.genius.provider.StaffProvider", hosts='192.168.11.29:2185')

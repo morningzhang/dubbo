@@ -43,7 +43,7 @@ class Dubbo(object):
         with_attachments = body.read('uintbe:8')
         if with_attachments == 149:
             return None
-        elif with_attachments == 148 or with_attachments == 145:
+        else:
             p = parser.ParserV2(body)
             res = p.read_object()
             return res
