@@ -5,10 +5,15 @@ from setuptools import setup, find_packages
 
 setup(
     name='pydubbo',
-    version='0.0.4',
+    version='0.0.5',
     description=(
         '用python调用dubbo可以用于测试等'
     ),
+    install_requires=[
+            "kazoo>=2.5.0",
+            "bitstring>=3.1.5",
+            "python_hessian>=1.0.2"
+        ],
     long_description=open('README.rst').read(),
     author='zhangliming',
     author_email='149151874@qq.com',
