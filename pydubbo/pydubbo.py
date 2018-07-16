@@ -1,12 +1,23 @@
 # -*- coding: utf-8 -*-
-import functools
 import six, urllib, urlparse
 
 from socket import socket, AF_INET, SOCK_STREAM
 from kazoo.client import KazooClient
 
 from utils import encoder, parser
-from bitstring import ConstBitStream
+from bitstring import ConstBitStream, BitStream
+
+
+class RespCode:
+    def __init__(self):
+        pass
+
+    RESPONSE_WITH_EXCEPTION = 0 + 144
+    RESPONSE_VALUE = 1 + 144
+    RESPONSE_NULL_VALUE = 2 + 144
+    RESPONSE_WITH_EXCEPTION_WITH_ATTACHMENTS = 3 + 144
+    RESPONSE_VALUE_WITH_ATTACHMENTS = 4 + 144
+    RESPONSE_NULL_VALUE_WITH_ATTACHMENTS = 5 + 144
 
 
 class Dubbo(object):
@@ -40,15 +51,23 @@ class Dubbo(object):
         client.send(data)
 
         res_header = ConstBitStream(bytes=client.recv(16)).readlist('intbe:16,intbe:8,intbe:8,uintbe:64,uintbe:32')
-        body = ConstBitStream(bytes=client.recv(res_header[-1]))
-        with_attachments = body.read('uintbe:8')
-        if with_attachments == 149:
+        length = res_header[-1]
+
+        bytes = []
+        while length > 0:
+            data = client.recv(1024)
+            bytes.append(data)
+            length -= len(data)
+
+        body = ConstBitStream(bytes="".join(bytes))
+        resp_code = body.read('uintbe:8')
+        if resp_code == RespCode.RESPONSE_NULL_VALUE or resp_code == RespCode.RESPONSE_NULL_VALUE_WITH_ATTACHMENTS:
             return None
-        elif with_attachments == 83:  # 报错了
+        elif resp_code == RespCode.RESPONSE_WITH_EXCEPTION or resp_code == RespCode.RESPONSE_WITH_EXCEPTION_WITH_ATTACHMENTS:
             p = parser.ParserV2(body)
-            res = p.read_string()
+            res = p.read_object()
             raise Exception(res)
-        else:
+        elif resp_code == RespCode.RESPONSE_VALUE or resp_code == RespCode.RESPONSE_NULL_VALUE_WITH_ATTACHMENTS:
             p = parser.ParserV2(body)
             res = p.read_object()
             return res
