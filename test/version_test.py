@@ -8,4 +8,5 @@ if __name__ == '__main__':
         res = d.receiveMessage("receiveMessage", [("Ljava/lang/Integer;", 180702001)])
         print(res)
     except Exception as e:
-        print(e)
+        print(e.message.detailMessage)
+        exit(1)
