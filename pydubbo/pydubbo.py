@@ -6,6 +6,7 @@ from kazoo.client import KazooClient
 
 from utils import encoder, parser
 from bitstring import ConstBitStream, BitStream
+import random, threading, inspect
 
 
 class RespCode:
@@ -74,6 +75,8 @@ class Dubbo(object):
 
 
 class DubboZK(Dubbo):
+    _instance_lock = threading.Lock()
+
     def __init__(self, interface, hosts, version="0.0.0", dubbo_v="2.0.2"):
         self.dubbo_v = dubbo_v
         self.interface = interface
@@ -85,18 +88,47 @@ class DubboZK(Dubbo):
         self.zk = zk
         # providers
         providers = zk.get_children("/dubbo/%s/providers" % interface)
-        uri = urlparse.urlparse(urllib.unquote(providers[0]))
+        uris = [urlparse.urlparse(urllib.unquote(provider)) for provider in providers]
         # client
-        client = socket(AF_INET, SOCK_STREAM)
-        client.connect((uri.hostname, uri.port))
-        self.client = client
+        clients = []
+        for uri in uris:
+            client = socket(AF_INET, SOCK_STREAM)
+            client.connect((uri.hostname, uri.port))
+            clients.append(client)
+
+        self.clients = clients
         # add method
-        params = urlparse.parse_qs(uri.query)
+        params = urlparse.parse_qs(uri.path)
         for method in params["methods"][0].split(","):
-            setattr(self, method, self.invoke)
+            def _decorator(func):
+                def _(*args):
+                    self.method = func
+                    self.args = args[0]
+                    return self.invoke(*args)
 
-    def invoke(self, method, args):
-        self.args = args
-        self.method = method
+                return _
 
-        return self._invoke(self.client)
+            setattr(self, method, _decorator(method))
+
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(DubboZK, "_instance"):
+            with DubboZK._instance_lock:
+                if not hasattr(DubboZK, "_instance"):
+                    DubboZK._instance = object.__new__(cls)
+        return DubboZK._instance
+
+    def invoke(self, *args):
+        args_len = len(args)
+        if args_len > 1:
+            self.method = args[0]
+            self.args = args[1]
+
+        bound = (0, len(self.clients) - 1)
+        return self._invoke(self.clients[random.randint(bound[0], bound[1])])
+
+    def close(self):
+        for client in self.clients:
+            try:
+                client.close()
+            except Exception, e:
+                print(e)
