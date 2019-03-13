@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='pydubbo',
-    version='0.0.8',
+    version='0.0.9',
     description=(
         'python调用dubbo,目前支持dubbo协议，不需要服务端修改成jsonrpc.实现客户端的负载均衡、配合Zookeeper自动发现服务功能等'
     ),
