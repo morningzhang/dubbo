@@ -1,5 +1,4 @@
-
-用python调用dubbo可以用于测试等
+python调用dubbo,目前支持dubbo协议，不需要服务端修改成jsonrpc.实现客户端的负载均衡、配合Zookeeper自动发现服务功能等
 依赖pyhessian，bitstring
 
 示例代码
