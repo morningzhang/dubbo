@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='pydubbo',
-    version='0.0.6',
+    version='0.0.7',
     description=(
         '用python调用dubbo可以用于测试等'
     ),
