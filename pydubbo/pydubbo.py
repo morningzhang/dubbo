@@ -77,7 +77,10 @@ class Dubbo(object):
 class DubboZK(Dubbo):
     _instance_lock = threading.Lock()
 
-    def __init__(self, interface, hosts, version="0.0.0", dubbo_v="2.0.2"):
+    def __init__(self, interface, hosts, version="0.0.0", dubbo_v="2.0.2", lb_mode=0):
+        self.lb_mode = lb_mode  # lb_mode=0 轮训;lb_mode= 1 随机
+        self._rr = -1
+
         self.dubbo_v = dubbo_v
         self.interface = interface
         self.version = version
@@ -89,16 +92,17 @@ class DubboZK(Dubbo):
         # providers
         providers = zk.get_children("/dubbo/%s/providers" % interface)
         uris = [urlparse.urlparse(urllib.unquote(provider)) for provider in providers]
+        self.uris = uris
         # client
         clients = []
         for uri in uris:
             client = socket(AF_INET, SOCK_STREAM)
             client.connect((uri.hostname, uri.port))
             clients.append(client)
-
         self.clients = clients
+
         # add method
-        params = urlparse.parse_qs(uri.path)
+        params = urlparse.parse_qs(uris[0].path)
         for method in params["methods"][0].split(","):
             def _decorator(func):
                 def _(*args):
@@ -123,7 +127,12 @@ class DubboZK(Dubbo):
             self.method = args[0]
             self.args = args[1]
 
-        bound = (0, len(self.clients) - 1)
+        clients_len = len(self.clients)
+        if self.lb_mode == 0:
+            self._rr = (self._rr + 1) % clients_len
+            return self._invoke(self.clients[self._rr])
+
+        bound = (0, clients_len - 1)
         return self._invoke(self.clients[random.randint(bound[0], bound[1])])
 
     def close(self):
