@@ -102,7 +102,14 @@ class DubboZK(Dubbo):
         self.clients = clients
 
         # add method
-        params = urlparse.parse_qs(uris[0].path)
+        if "methods" in uris[0].path:
+            query = uris[0].path
+        elif "methods" in uris[0].query:
+            query = uris[0].query
+        else:
+            print(u"no method found.")
+            exit(1)
+        params = urlparse.parse_qs(query)
         for method in params["methods"][0].split(","):
             def _decorator(func):
                 def _(*args):
