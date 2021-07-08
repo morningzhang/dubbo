@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-import six, urllib, urlparse
+import six, urllib
+from urllib.parse import urlparse,unquote,parse_qs,urlunparse
 
 from socket import socket, AF_INET, SOCK_STREAM
+from io import StringIO
 from kazoo.client import KazooClient
 
-from utils import encoder, parser
+from utils import encoder, parser, provider
 from bitstring import ConstBitStream, BitStream
 import random, threading, inspect
 
@@ -21,6 +23,14 @@ class RespCode:
     RESPONSE_NULL_VALUE_WITH_ATTACHMENTS = 5 + 144
 
 
+class Attachments(dict):
+    def __setattr__(self,k,v):
+        self[k] = v
+    
+    def __getattr__(self,k):
+        return self[k]
+
+
 class Dubbo(object):
     def __init__(self, interface, version, method, args, dubbo_v="2.0.2"):
         self.dubbo_v = dubbo_v
@@ -28,13 +38,16 @@ class Dubbo(object):
         self.version = version
         self.method = method
         self.args = args
-        self.attachments = {"path": interface, "interface": interface, "version": version}
+        self.attachments = Attachments({"path": interface, "interface": interface})
+        if self.version:
+            self.attachments.version = self.version
 
     def _encode(self, encoder):
         elements = []
         elements.append(six.binary_type(encoder.encode(self.dubbo_v)))
         elements.append(six.binary_type(encoder.encode(self.interface)))
-        elements.append(six.binary_type(encoder.encode(self.version)))
+        if self.version:
+            elements.append(six.binary_type(encoder.encode(self.version)))
         elements.append(six.binary_type(encoder.encode(self.method)))
 
         arg_type = "".join([arg_type for arg_type, _ in self.args])
@@ -43,7 +56,7 @@ class Dubbo(object):
             elements.append(six.binary_type(encoder.encode(arg)))
         elements.append(six.binary_type(encoder.encode(self.attachments)))
 
-        return "".join(elements)
+        return b"".join(elements)
 
     def _invoke(self, client):
         data = self._encode(encoder.Encoder())
@@ -60,7 +73,7 @@ class Dubbo(object):
             bytes.append(data)
             length -= len(data)
 
-        body = ConstBitStream(bytes="".join(bytes))
+        body = ConstBitStream(bytes=b"".join(bytes))
         resp_code = body.read('uintbe:8')
         if resp_code == RespCode.RESPONSE_NULL_VALUE or resp_code == RespCode.RESPONSE_NULL_VALUE_WITH_ATTACHMENTS:
             return None
@@ -72,54 +85,145 @@ class Dubbo(object):
             p = parser.ParserV2(body)
             res = p.read_object()
             return res
+        elif resp_code == 148:
+            p = parser.ParserV2(body)
+            res = p.read_object()
+            return res
+        else:
+            print(body.tobytes())
 
+
+class DubboZKProvider(provider.ProviderRegistryMixin):
+    JAVA_PRIMATIVE_TYPE_BYTECODE_MAP = {
+        "J":"long",
+        "I":"int",
+        "F":"float",
+        "B":"byte",
+        "S":"short",
+        "D":"double",
+        "Z":"boolean",
+        "C":"char"
+    }
+    
+    JAVA_PRIMATIVE_TYPE_BYTECODE_LIST = [
+        "J",
+        "I",
+        "F",
+        "B",
+        "S",
+        "D",
+        "Z",
+        "C"
+    ]
+    
+    def parse_arguments_types(self,arg_types):
+        if not arg_types:
+            return ()
+        
+        stream = StringIO(arg_types)
+        stream_len = len(arg_types)
+        
+        arguments = []
+        
+        start_idx = 0
+        while start_idx < stream_len-1:
+            char = stream.read(1)
+            start_idx += 1
+            if char in self.JAVA_PRIMATIVE_TYPE_BYTECODE_LIST:
+                arguments.append(self.JAVA_PRIMATIVE_TYPE_BYTECODE_MAP.get(char))
+                continue
+            
+            if char == "L":
+                arg_type = char
+                while char != ";" and start_idx < stream_len:
+                    char = stream.read(1)
+                    start_idx += 1
+                    arg_type += char
+                
+                arguments.append(arg_type)
+        
+        return arguments
+        
+    
+    def parse(self,data,length):
+        body = ConstBitStream(bytes=data)
+        p = parser.ParserV2(body)
+        
+        dubbo_version = p.read_object()
+        interface = p.read_object()
+        interface_version = p.read_object()
+        method = p.read_object()
+        argument_types = self.parse_arguments_types(p.read_object())
+        arguments = [ p.read_object() for x in argument_types]
+        attachments = p.read_object()
+        
+        return {
+            "dubbo_version":dubbo_version,
+            "interface":interface,
+            "interface_version":interface_version,
+            "method":method,
+            "argument_types":argument_types,
+            "arguments":arguments,
+            "attachements":attachments
+        }    
+    
+    
 
 class DubboZK(Dubbo):
     _instance_lock = threading.Lock()
 
-    def __init__(self, interface, hosts, version="0.0.0", dubbo_v="2.0.2", lb_mode=0):
+    def __init__(self, interface, hosts, version="0.0.0", dubbo_v="2.6.8", lb_mode=0):
         self.lb_mode = lb_mode  # lb_mode=0 轮训;lb_mode= 1 随机
         self._rr = -1
 
         self.dubbo_v = dubbo_v
         self.interface = interface
         self.version = version
-        self.attachments = {"path": interface, "interface": interface, "version": version}
+        self.attachments = Attachments({"path": interface, "interface": interface})
+        if self.version:
+            self.attachments.version = self.version
         # zk
         zk = KazooClient(hosts=hosts)
         zk.start()
         self.zk = zk
         # providers
         providers = zk.get_children("/dubbo/%s/providers" % interface)
-        uris = [urlparse.urlparse(urllib.unquote(provider)) for provider in providers]
+        uris = [urlparse(unquote(provider)) for provider in providers]
         self.uris = uris
+            
+        if len(uris) == 0:
+            print("no service found")
+            return
+        
         # client
         clients = []
         for uri in uris:
             client = socket(AF_INET, SOCK_STREAM)
             client.connect((uri.hostname, uri.port))
-            clients.append(client)
+            clients.append(client)        
         self.clients = clients
 
         # add method
+        query = None
         if "methods" in uris[0].path:
             query = uris[0].path
         elif "methods" in uris[0].query:
             query = uris[0].query
         else:
             print(u"no method found.")
-            exit(1)
-        params = urlparse.parse_qs(query)
-        for method in params["methods"][0].split(","):
-            def _decorator(func):
-                def _(*args):
-                    self.method = func
-                    self.args = args[0]
-                    return self.invoke(*args)
-
-                return _
-
-            setattr(self, method, _decorator(method))
+        
+        if query is not None:
+            params = parse_qs(query)
+            for method in params["methods"][0].split(","):
+                def _decorator(func):
+                    def _(*args):
+                        self.method = func
+                        self.args = args[0]
+                        return self.invoke(*args)
+    
+                    return _
+    
+                setattr(self, method, _decorator(method))
 
     def __new__(cls, *args, **kwargs):
         if not hasattr(DubboZK, "_instance"):
@@ -146,5 +250,5 @@ class DubboZK(Dubbo):
         for client in self.clients:
             try:
                 client.close()
-            except Exception, e:
+            except Exception as e:
                 print(e)
