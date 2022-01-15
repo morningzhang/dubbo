@@ -1,3 +1,4 @@
-kazoo>=2.5.0
-bitstring>=3.1.5
-python_hessian>=1.0.2
+kazoo>=2.8.0
+bitstring>=3.1.9
+python_hessian>=1.1.2
+uvloop>=0.16.0

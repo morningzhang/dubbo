@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from pydubbo.pydubbo import Dubbo
 from socket import socket, AF_INET, SOCK_STREAM
+
+from pydubbo import Dubbo
 
 if __name__ == '__main__':
 

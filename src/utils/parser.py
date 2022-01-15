@@ -368,7 +368,7 @@ class ParserV2(ParserV1):
             return super(ParserV2, self).read_object(code)
 
     def read_list(self, typed=False, fixed_length=False, length=None):
-        if length is 0:
+        if length == 0:
             return tuple([]) if fixed_length else []
 
         if typed:
@@ -398,7 +398,7 @@ class ParserV2(ParserV1):
             return result
 
     def read_v2_string(self, code, length):
-        if length is 0:
+        if length == 0:
             return u''
         chunks = []
         while True:
