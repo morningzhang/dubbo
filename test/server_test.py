@@ -4,7 +4,7 @@ import socket
 
 from bitstring import ConstBitStream
 
-from pydubbo import DubboProvider, RespCode
+from pydubbo import DubboProvider, ResponseCode
 from  utils import encoder
 
 HEADER_SIZE = 16
@@ -39,7 +39,7 @@ def start_server(port,func):
 
             data = bytearray()
 
-            data.extend(ConstBitStream(f'uintbe:8={RespCode.RESPONSE_VALUE_WITH_ATTACHMENTS}').bytes)
+            data.extend(ConstBitStream(f'uintbe:8={ResponseCode.RESPONSE_VALUE_WITH_ATTACHMENTS}').bytes)
             data.extend(encoder.encode_object(func(*parsed_data['arguments'])))
             reg_header = ConstBitStream('intbe:16=-9541,intbe:8=-62,intbe:8=0,uintbe:64=0,uintbe:32=%d' % len(data))
             con.send(reg_header.bytes)
